@@ -50,10 +50,10 @@ export default function CustomerLogin() {
   };
 
   return (
-    <div style={{ maxWidth: '440px', margin: '4rem auto 6rem', padding: '2.5rem', background: '#fff', borderRadius: '16px', border: '1px solid #e5e7eb', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
-      <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '1.8rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>Welcome Back</h1>
-        <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '0.5rem' }}>Log in to access your saved details and faster checkout.</p>
+    <div style={{ maxWidth: '580px', width: '100%', margin: '4rem auto 6rem', padding: '3rem 2.8rem', background: '#fff', borderRadius: '20px', border: '1px solid #e5e7eb', boxShadow: '0 10px 30px rgba(0,0,0,0.06)', boxSizing: 'border-box' }}>
+      <div style={{ textAlign: 'center', marginBottom: '2.2rem' }}>
+        <h1 style={{ fontSize: '2rem', fontWeight: 900, color: '#0f172a', margin: 0, letterSpacing: '-0.5px' }}>Welcome Back</h1>
+        <p style={{ color: '#64748b', fontSize: '0.95rem', marginTop: '0.5rem' }}>Log in to access your saved details and faster checkout.</p>
       </div>
 
       {error && (

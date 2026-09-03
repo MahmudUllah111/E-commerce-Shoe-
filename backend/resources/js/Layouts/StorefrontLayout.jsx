@@ -48,12 +48,6 @@ export default function StorefrontLayout({ children }) {
                         <Link href="/track-order" className="hover:text-white flex items-center gap-1 text-rose-400">
                             📦 Track Order
                         </Link>
-                        {!user && (
-                            <>
-                                <span className="text-slate-600">|</span>
-                                <Link href="/register" className="hover:text-white text-slate-300">Create Account</Link>
-                            </>
-                        )}
                     </div>
                 </div>
             </div>

@@ -56,13 +56,13 @@ export default function AdminLogin() {
   };
 
   return (
-    <div style={{ maxWidth: '440px', margin: '4rem auto 6rem', padding: '2.5rem', background: '#fff', borderRadius: '16px', border: '1px solid #e5e7eb', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
-      <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-        <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
-          <ShieldCheck size={28} />
+    <div style={{ maxWidth: '580px', width: '100%', margin: '4rem auto 6rem', padding: '3rem 2.8rem', background: '#fff', borderRadius: '20px', border: '1px solid #e5e7eb', boxShadow: '0 10px 30px rgba(0,0,0,0.06)', boxSizing: 'border-box' }}>
+      <div style={{ textAlign: 'center', marginBottom: '2.2rem' }}>
+        <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.2rem' }}>
+          <ShieldCheck size={30} />
         </div>
-        <h1 style={{ fontSize: '1.8rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>Staff Portal</h1>
-        <p style={{ color: '#64748b', fontSize: '0.85rem', marginTop: '0.4rem' }}>Sign in with administrator credentials to manage inventory & orders.</p>
+        <h1 style={{ fontSize: '2rem', fontWeight: 900, color: '#0f172a', margin: 0, letterSpacing: '-0.5px' }}>Staff Portal</h1>
+        <p style={{ color: '#64748b', fontSize: '0.95rem', marginTop: '0.5rem' }}>Sign in with administrator credentials to manage inventory & orders.</p>
       </div>
 
       {error && (
