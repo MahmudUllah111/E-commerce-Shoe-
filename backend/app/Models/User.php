@@ -7,11 +7,13 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Spatie\Permission\Traits\HasRoles;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, HasRoles;
 
     /**
      * The attributes that are mass assignable.
@@ -22,6 +24,12 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'role',
+        'phone',
+        'address',
+        'city',
+        'postal_code',
+        'is_blocked',
     ];
 
     /**
@@ -33,6 +41,10 @@ class User extends Authenticatable
         'password',
         'remember_token',
     ];
+
+    public function orders(){ return $this->hasMany(Order::class); }
+    public function addresses(){ return $this->hasMany(Address::class); }
+    public function wishlists(){ return $this->hasMany(Wishlist::class); }
 
     /**
      * Get the attributes that should be cast.

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class ProductController extends Controller
@@ -52,7 +53,7 @@ class ProductController extends Controller
                 break;
         }
 
-        $products = $query->paginate(12);
+        $products = $query->paginate(24);
 
         foreach ($products->items() as $p) {
             $p->images = DB::table('product_images')->where('product_id', $p->id)->pluck('image_url');
@@ -271,6 +272,7 @@ class ProductController extends Controller
         return response()->json($order);
     }
 
+    // 1. CUSTOMER ADDS PRODUCT TO WISHLIST / RESTOCK REQUEST
     // POST /api/stock-notifications
     public function subscribeStockNotification(Request $request)
     {
@@ -293,7 +295,32 @@ class ProductController extends Controller
             ]
         );
 
-        return response()->json(['success' => true, 'message' => 'Notification recorded.']);
+        $product = DB::table('products')->where('id', $validated['product_id'])->first();
+        $variant = DB::table('product_variants')->where('id', $validated['variant_id'])->first();
+
+        // Send Email Alert to the Store Admin
+        try {
+            $adminEmail = env('MAIL_FROM_ADDRESS', 'mahmudsets@gmail.com');
+            $body = "Hello Administrator,\n\nA customer has requested a restock notification from the store:\n\n" .
+                    "Customer Email: {$validated['email']}\n" .
+                    "Shoe Model: {$product->name}\n" .
+                    "Size Requested: US {$variant->size_value}\n" .
+                    "Current Stock: {$variant->stock_quantity} pairs\n\n" .
+                    "You can update inventory from your Admin Panel: http://localhost:5173/admin\n\n" .
+                    "- TrustedMart Automated Inventory Alert";
+
+            Mail::raw($body, function ($message) use ($adminEmail, $product, $variant) {
+                $message->to($adminEmail)
+                        ->subject("🔔 Restock Demand: {$product->name} (US {$variant->size_value})");
+            });
+        } catch (\Exception $e) {
+            Log::error('Admin alert email error: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'success' => true, 
+            'message' => 'Restock request registered and notification alert sent to Admin.'
+        ]);
     }
 
     // GET /api/admin/catalog
@@ -309,6 +336,7 @@ class ProductController extends Controller
         foreach ($products as $p) {
             $p->variants = DB::table('product_variants')->where('product_id', $p->id)->get();
             $p->images = DB::table('product_images')->where('product_id', $p->id)->pluck('image_url');
+            $p->total_stock = $p->variants->sum('stock_quantity');
             $p->pending_notifications = DB::table('stock_notifications')
                 ->where('product_id', $p->id)
                 ->where('status', 'pending')
@@ -318,6 +346,7 @@ class ProductController extends Controller
         return response()->json($products);
     }
 
+    // 2. ADMIN RESTOCKS PRODUCT IN ADMIN PANEL -> AUTO-EMAIL TO WAITING CUSTOMERS
     // POST /api/admin/inventory/update
     public function updateVariantStock(Request $request)
     {
@@ -328,18 +357,19 @@ class ProductController extends Controller
 
         $variant = DB::table('product_variants')->where('id', $validated['variant_id'])->first();
         $previousStock = (int)$variant->stock_quantity;
+        $newStock = (int)$validated['new_stock'];
 
         DB::table('product_variants')
             ->where('id', $validated['variant_id'])
             ->update([
-                'stock_quantity' => $validated['new_stock'],
+                'stock_quantity' => $newStock,
                 'updated_at' => now(),
             ]);
 
         $notifiedCustomers = [];
 
-        // When stock goes from 0 to > 0, notify subscribed customers
-        if ($previousStock === 0 && $validated['new_stock'] > 0) {
+        // If new stock is added, notify any pending customer subscribers
+        if ($newStock > 0) {
             $product = DB::table('products')->where('id', $variant->product_id)->first();
 
             $subscribers = DB::table('stock_notifications')
@@ -348,15 +378,23 @@ class ProductController extends Controller
                 ->get();
 
             foreach ($subscribers as $sub) {
-                $emailBody = "Hello,\n\nGood news! The \"{$product->name}\" (Size: US {$variant->size_value}) that you requested from your wishlist is now back in stock!\n\nPlease visit our store at: http://localhost:5173/product/{$product->id} to purchase it before it sells out.\n\nThank you for choosing TrustedMart!";
+                $emailBody = "Hello,\n\n" .
+                             "Great news! The shoe you were waiting for is back in stock!\n\n" .
+                             "Model: {$product->name}\n" .
+                             "Size: US {$variant->size_value}\n" .
+                             "Available Units: {$newStock}\n" .
+                             "Price: \${$product->price}\n\n" .
+                             "You can view and order it right now at: http://localhost:5173/product/{$product->id}\n\n" .
+                             "Grab it before it sells out again!\n\n" .
+                             "- TrustedMart Team";
 
                 try {
-                    Mail::raw($emailBody, function ($message) use ($sub, $product) {
+                    Mail::raw($emailBody, function ($message) use ($sub, $product, $variant) {
                         $message->to($sub->email)
-                                ->subject("Back in Stock: {$product->name} is available now!");
+                                ->subject("🎉 Back in Stock: {$product->name} (US {$variant->size_value})");
                     });
                 } catch (\Exception $e) {
-                    // Fail silently if network/mail transport is temporarily unavailable
+                    Log::error('Customer restock email error: ' . $e->getMessage());
                 }
 
                 DB::table('stock_notifications')
@@ -377,10 +415,10 @@ class ProductController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => "Stock updated to {$validated['new_stock']} units.",
+            'message' => "Stock updated to {$newStock} units.",
             'notified_customers' => $notifiedCustomers,
             'notified_count' => count($notifiedCustomers),
-            'new_stock' => $validated['new_stock']
+            'new_stock' => $newStock
         ]);
     }
 
@@ -478,7 +516,7 @@ class ProductController extends Controller
     {
         $validated = $request->validate([
             'order_id' => 'required|exists:orders,id',
-            'status' => 'required|in:processing,shipped,delivered,cancelled',
+            'status' => 'required|in:pending,processing,shipped,delivered,cancelled',
         ]);
 
         DB::table('orders')->where('id', $validated['order_id'])->update([
@@ -491,7 +529,44 @@ class ProductController extends Controller
             'message' => "Order status updated to {$validated['status']}"
         ]);
     }
-    
+
+    // GET /api/admin/inquiries
+    public function getAdminInquiries()
+    {
+        if (DB::getSchemaBuilder()->hasTable('contact_inquiries')) {
+            $inquiries = DB::table('contact_inquiries')->orderBy('id', 'desc')->get();
+            return response()->json($inquiries);
+        }
+        return response()->json([]);
+    }
+
+    // GET /api/admin/customers
+    public function getAdminCustomers()
+    {
+        $customers = DB::table('users')->where('role', 'customer')->orderBy('id', 'desc')->get();
+        return response()->json($customers);
+    }
+
+    // GET /api/admin/stock-notifications (Waiting list view)
+    public function getAdminStockNotifications()
+    {
+        if (DB::getSchemaBuilder()->hasTable('stock_notifications')) {
+            $notifications = DB::table('stock_notifications')
+                ->join('products', 'stock_notifications.product_id', '=', 'products.id')
+                ->join('product_variants', 'stock_notifications.variant_id', '=', 'product_variants.id')
+                ->select(
+                    'stock_notifications.*',
+                    'products.name as product_name',
+                    'product_variants.size_value',
+                    'product_variants.stock_quantity as current_stock'
+                )
+                ->orderBy('stock_notifications.id', 'desc')
+                ->get();
+
+            return response()->json($notifications);
+        }
+        return response()->json([]);
+    }
 
     // POST /api/contact
     public function submitContact(Request $request)
@@ -511,21 +586,39 @@ class ProductController extends Controller
             'updated_at' => now(),
         ]);
 
-        // Optional: Send an email alert to your Gmail
         try {
             Mail::raw("New Contact Inquiry from {$validated['name']} ({$validated['email']}):\n\n{$validated['message']}", function ($m) use ($validated) {
-                $m->to('mahmudsets@gmail.com')
+                $m->to(env('MAIL_FROM_ADDRESS', 'mahmudsets@gmail.com'))
                   ->subject("New Customer Inquiry: {$validated['name']}");
             });
         } catch (\Exception $e) {
-            // Fail gracefully if mail server is busy
+            Log::error('Contact form email error: ' . $e->getMessage());
         }
 
         return response()->json(['success' => true, 'message' => 'Message stored successfully!'], 201);
     }
 
+    // GET /api/user/orders
+    public function userOrders(Request $request)
+    {
+        $email = $request->query('email');
+        if (!$email) {
+            return response()->json([]);
+        }
 
+        $orders = DB::table('orders')
+            ->where('customer_email', $email)
+            ->orderBy('id', 'desc')
+            ->get();
 
+        foreach ($orders as $order) {
+            $order->items = DB::table('order_items')
+                ->join('products', 'order_items.product_id', '=', 'products.id')
+                ->select('order_items.*', 'products.name as product_name')
+                ->where('order_items.order_id', $order->id)
+                ->get();
+        }
 
-
+        return response()->json($orders);
+    }
 }

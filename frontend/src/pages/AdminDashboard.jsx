@@ -1,68 +1,91 @@
 import React, { useState, useEffect } from 'react';
+import { useShop } from '../context/ShopContext';
 import { 
-  getAdminCatalog, 
-  updateVariantStock, 
-  createNewProduct, 
-  getBrands, 
-  getCategories, 
-  getAdminOrders, 
-  updateOrderStatus 
-} from '../services/api';
-import { Plus, Package, Mail, CheckCircle2, Send, X, Image as ImageIcon } from 'lucide-react';
+  Package, 
+  ShoppingBag, 
+  Mail, 
+  Users, 
+  DollarSign, 
+  AlertTriangle, 
+  RefreshCw, 
+  Edit2, 
+  Save, 
+  X, 
+  Plus, 
+  Trash2 
+} from 'lucide-react';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState('inventory');
-  const [catalog, setCatalog] = useState([]);
+  const { currentUser } = useShop();
+  const [activeTab, setActiveTab] = useState('catalog');
+  const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [stockInputs, setStockInputs] = useState({});
-  const [showAddModal, setShowAddModal] = useState(false);
-  
-  // Pop-up for notifying customers
-  const [alertPopup, setAlertPopup] = useState(null);
-  const [quickNotice, setQuickNotice] = useState(null);
-
-  // Form states for adding new shoe
+  const [inquiries, setInquiries] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [brands, setBrands] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [newShoe, setNewShoe] = useState({
+  const [loading, setLoading] = useState(true);
+
+  // Quick edit stock state
+  const [editingVariantId, setEditingVariantId] = useState(null);
+  const [editStockVal, setEditStockVal] = useState('');
+
+  // Add Product Modal State
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [submittingProduct, setSubmittingProduct] = useState(false);
+  const [newProduct, setNewProduct] = useState({
     name: '',
     brand_id: '',
     category_id: '',
     gender: 'Men',
     price: '',
+    image_url: '',
     description: '',
-    materials: 'Breathable mesh upper, rubber outsole',
-    image_url: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&auto=format&fit=crop&q=80',
+    materials: 'Breathable engineered mesh upper and responsive cushioning',
     sizes: [
-      { size_value: '7', color_name: 'Standard', stock_quantity: 10 },
-      { size_value: '8', color_name: 'Standard', stock_quantity: 10 },
-      { size_value: '8.5', color_name: 'Standard', stock_quantity: 10 },
-      { size_value: '9', color_name: 'Standard', stock_quantity: 10 },
-      { size_value: '9.5', color_name: 'Standard', stock_quantity: 10 },
-      { size_value: '10', color_name: 'Standard', stock_quantity: 10 },
-      { size_value: '10.5', color_name: 'Standard', stock_quantity: 10 },
-      { size_value: '11', color_name: 'Standard', stock_quantity: 10 },
-    ],
+      { size_value: '8', stock_quantity: 10, color_name: 'Standard' },
+      { size_value: '9', stock_quantity: 15, color_name: 'Standard' },
+      { size_value: '10', stock_quantity: 12, color_name: 'Standard' },
+    ]
   });
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [items, bList, cList, orderList] = await Promise.all([
-        getAdminCatalog(),
-        getBrands(),
-        getCategories(),
-        getAdminOrders(),
+      const [catRes, ordRes, inqRes, custRes, brandRes, categoryRes] = await Promise.all([
+        fetch('http://127.0.0.1:8000/api/admin/catalog'),
+        fetch('http://127.0.0.1:8000/api/admin/orders'),
+        fetch('http://127.0.0.1:8000/api/admin/inquiries'),
+        fetch('http://127.0.0.1:8000/api/admin/customers'),
+        fetch('http://127.0.0.1:8000/api/brands'),
+        fetch('http://127.0.0.1:8000/api/categories'),
       ]);
-      setCatalog(items);
+
+      const catData = await catRes.json();
+      const ordData = await ordRes.json();
+      const inqData = await inqRes.json();
+      const custData = await custRes.json();
+      const brandData = await brandRes.json();
+      const categoryData = await categoryRes.json();
+
+      setProducts(Array.isArray(catData) ? catData : (catData.data || []));
+      setOrders(Array.isArray(ordData) ? ordData : (ordData.data || []));
+      setInquiries(Array.isArray(inqData) ? inqData : (inqData.data || []));
+      setCustomers(Array.isArray(custData) ? custData : (custData.data || []));
+      
+      const bList = Array.isArray(brandData) ? brandData : [];
+      const cList = Array.isArray(categoryData) ? categoryData : [];
       setBrands(bList);
       setCategories(cList);
-      setOrders(orderList);
-      if (bList[0]) setNewShoe((prev) => ({ ...prev, brand_id: bList[0].id }));
-      if (cList[0]) setNewShoe((prev) => ({ ...prev, category_id: cList[0].id }));
+
+      if (bList.length > 0 && !newProduct.brand_id) {
+        setNewProduct(prev => ({ ...prev, brand_id: bList[0].id }));
+      }
+      if (cList.length > 0 && !newProduct.category_id) {
+        setNewProduct(prev => ({ ...prev, category_id: cList[0].id }));
+      }
     } catch (err) {
-      console.error('Failed to load admin data:', err);
+      console.error('Failed to load admin records:', err);
     } finally {
       setLoading(false);
     }
@@ -72,441 +95,624 @@ export default function AdminDashboard() {
     loadData();
   }, []);
 
-  const handleStockSave = async (variantId, currentSize) => {
-    const qty = parseInt(stockInputs[variantId]);
-    if (isNaN(qty) || qty < 0) return alert('Enter a valid stock number');
-
+  const handleUpdateStock = async (variantId) => {
     try {
-      const res = await updateVariantStock(variantId, qty);
-      
-      // If customers were waiting for this shoe size, trigger the pop-up
-      if (res.notified_customers && res.notified_customers.length > 0) {
-        setAlertPopup({
-          shoe_name: res.notified_customers[0].shoe_name,
-          size: res.notified_customers[0].size,
-          customers: res.notified_customers,
-        });
-      } else {
-        // Quiet confirmation banner
-        setQuickNotice(`Size US ${currentSize} stock updated to ${qty} units.`);
-        setTimeout(() => setQuickNotice(null), 4000);
+      const res = await fetch('http://127.0.0.1:8000/api/admin/inventory/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ variant_id: variantId, new_stock: Number(editStockVal) })
+      });
+      if (res.ok) {
+        setEditingVariantId(null);
+        loadData();
       }
-
-      loadData();
     } catch (err) {
-      alert('Error updating inventory');
+      console.error('Failed to update stock:', err);
     }
   };
 
-  const handleStatusChange = async (orderId, newStatus) => {
+  const handleUpdateOrderStatus = async (orderId, newStatus) => {
     try {
-      await updateOrderStatus(orderId, newStatus);
-      setQuickNotice(`Order status changed to "${newStatus}"`);
-      setTimeout(() => setQuickNotice(null), 4000);
-      loadData();
+      const res = await fetch('http://127.0.0.1:8000/api/admin/orders/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ order_id: orderId, status: newStatus })
+      });
+      if (res.ok) {
+        loadData();
+      }
     } catch (err) {
-      alert('Failed to update order status');
+      console.error('Failed to update order status:', err);
     }
   };
 
-  const handleSizeStockChange = (index, value) => {
-    const updated = [...newShoe.sizes];
-    updated[index].stock_quantity = parseInt(value) || 0;
-    setNewShoe({ ...newShoe, sizes: updated });
+  // Add Variant size row
+  const handleAddSizeVariant = () => {
+    setNewProduct(prev => ({
+      ...prev,
+      sizes: [...prev.sizes, { size_value: '11', stock_quantity: 10, color_name: 'Standard' }]
+    }));
   };
 
-  const handleCreateShoe = async (e) => {
+  // Remove Variant size row
+  const handleRemoveSizeVariant = (index) => {
+    setNewProduct(prev => ({
+      ...prev,
+      sizes: prev.sizes.filter((_, i) => i !== index)
+    }));
+  };
+
+  // Handle Add Product Submit
+  const handleCreateProductSubmit = async (e) => {
     e.preventDefault();
+    setSubmittingProduct(true);
+
     try {
-      await createNewProduct(newShoe);
-      setShowAddModal(false);
-      setQuickNotice('New shoe published to store catalog successfully!');
-      setTimeout(() => setQuickNotice(null), 5000);
-      loadData();
+      const res = await fetch('http://127.0.0.1:8000/api/admin/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({
+          name: newProduct.name,
+          brand_id: Number(newProduct.brand_id || (brands[0]?.id ?? 1)),
+          category_id: Number(newProduct.category_id || (categories[0]?.id ?? 1)),
+          gender: newProduct.gender,
+          price: parseFloat(newProduct.price),
+          image_url: newProduct.image_url || 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600',
+          description: newProduct.description,
+          materials: newProduct.materials,
+          sizes: newProduct.sizes.map(s => ({
+            size_value: String(s.size_value),
+            stock_quantity: parseInt(s.stock_quantity, 10),
+            color_name: s.color_name || 'Standard'
+          }))
+        })
+      });
+
+      if (res.ok) {
+        setShowAddModal(false);
+        setNewProduct({
+          name: '',
+          brand_id: brands[0]?.id || '',
+          category_id: categories[0]?.id || '',
+          gender: 'Men',
+          price: '',
+          image_url: '',
+          description: '',
+          materials: 'Breathable engineered mesh upper and responsive cushioning',
+          sizes: [
+            { size_value: '8', stock_quantity: 10, color_name: 'Standard' },
+            { size_value: '9', stock_quantity: 15, color_name: 'Standard' },
+          ]
+        });
+        loadData();
+      } else {
+        const errData = await res.json();
+        alert(`Failed to add product: ${errData.message || 'Please check form fields'}`);
+      }
     } catch (err) {
-      alert('Failed to create shoe product');
+      console.error('Error creating shoe:', err);
+      alert('Network error while adding shoe model.');
+    } finally {
+      setSubmittingProduct(false);
     }
   };
+
+  const totalRevenue = orders.reduce((acc, o) => acc + Number(o.total_amount || 0), 0);
+  const lowStockCount = products.filter(p => (p.total_stock || 0) <= 5).length;
 
   return (
-    <div className="container" style={{ padding: '3rem 1.5rem', maxWidth: '1240px', margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+    <div style={{ maxWidth: '1280px', margin: '2rem auto 5rem', padding: '0 1.5rem' }}>
+      {/* Top Header Bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid #e5e7eb', paddingBottom: '1.5rem' }}>
         <div>
-          <h1 style={{ fontSize: '2.2rem', fontWeight: 800 }}>Admin Store Management</h1>
-          <p style={{ color: '#6b7280' }}>Manage footwear inventory, picture assets, and customer order fulfillment.</p>
+          <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#e11d48', letterSpacing: '1px' }}>CONTROL PANEL</span>
+          <h1 style={{ fontSize: '2.2rem', fontWeight: 900, color: '#0f172a', margin: '2px 0' }}>Admin Store Management</h1>
+          <p style={{ margin: 0, color: '#64748b', fontSize: '0.9rem' }}>Welcome back, {currentUser?.name || 'Administrator'}</p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.8rem 1.4rem',
-            borderRadius: '8px',
-            background: '#111827',
-            color: '#fff',
-            fontWeight: 700,
-            border: 'none',
-            cursor: 'pointer',
-          }}
-        >
-          <Plus size={18} /> Add New Shoe Model
-        </button>
+
+        <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
+          <button
+            onClick={() => setShowAddModal(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#0f172a', color: '#fff', border: 'none', padding: '0.65rem 1.25rem', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}
+          >
+            <Plus size={16} /> Add New Shoe Model
+          </button>
+
+          <button
+            onClick={loadData}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#f8fafc', border: '1px solid #cbd5e1', padding: '0.65rem 1rem', borderRadius: '8px', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}
+          >
+            <RefreshCw size={15} /> Refresh Data
+          </button>
+        </div>
+      </div>
+
+      {/* KPI Stats Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.2rem', marginBottom: '2.5rem' }}>
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.4rem', boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b', fontSize: '0.85rem', fontWeight: 700 }}>
+            <span>TOTAL REVENUE</span>
+            <DollarSign size={20} color="#10b981" />
+          </div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#0f172a', marginTop: '0.5rem' }}>
+            ${totalRevenue.toFixed(2)}
+          </div>
+        </div>
+
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.4rem', boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b', fontSize: '0.85rem', fontWeight: 700 }}>
+            <span>TOTAL ORDERS</span>
+            <ShoppingBag size={20} color="#3b82f6" />
+          </div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#0f172a', marginTop: '0.5rem' }}>
+            {orders.length}
+          </div>
+        </div>
+
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.4rem', boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b', fontSize: '0.85rem', fontWeight: 700 }}>
+            <span>ACTIVE CATALOG</span>
+            <Package size={20} color="#8b5cf6" />
+          </div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#0f172a', marginTop: '0.5rem' }}>
+            {products.length} Models
+          </div>
+        </div>
+
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.4rem', boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#64748b', fontSize: '0.85rem', fontWeight: 700 }}>
+            <span>LOW STOCK ALERTS</span>
+            <AlertTriangle size={20} color="#f59e0b" />
+          </div>
+          <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#0f172a', marginTop: '0.5rem' }}>
+            {lowStockCount} Items
+          </div>
+        </div>
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid #e5e7eb', marginBottom: '2rem' }}>
-        <button
-          onClick={() => setActiveTab('inventory')}
-          style={{
-            padding: '0.8rem 1.5rem',
-            border: 'none',
-            background: 'none',
-            fontWeight: 700,
-            fontSize: '1rem',
-            cursor: 'pointer',
-            borderBottom: activeTab === 'inventory' ? '3px solid #111827' : '3px solid transparent',
-            color: activeTab === 'inventory' ? '#111827' : '#6b7280',
-          }}
-        >
-          Inventory & Stock Management ({catalog.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('orders')}
-          style={{
-            padding: '0.8rem 1.5rem',
-            border: 'none',
-            background: 'none',
-            fontWeight: 700,
-            fontSize: '1rem',
-            cursor: 'pointer',
-            borderBottom: activeTab === 'orders' ? '3px solid #111827' : '3px solid transparent',
-            color: activeTab === 'orders' ? '#111827' : '#6b7280',
-          }}
-        >
-          Customer Orders ({orders.length})
-        </button>
-      </div>
-
-      {/* Quiet Status Notification */}
-      {quickNotice && (
-        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#15803d', padding: '0.85rem 1.2rem', borderRadius: '10px', marginBottom: '1.8rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}>
-          <CheckCircle2 size={18} />
-          <span>{quickNotice}</span>
-        </div>
-      )}
-
-      {/* Pop-Up Modal: Customer Back-in-Stock Alert */}
-      {alertPopup && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200 }}>
-          <div style={{ background: '#fff', padding: '2rem', borderRadius: '16px', maxWidth: '480px', width: '90%', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-            <div style={{ width: '50px', height: '50px', background: '#dcfce7', color: '#16a34a', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
-              <Send size={26} />
-            </div>
-
-            <h2 style={{ fontSize: '1.4rem', fontWeight: 800, textAlign: 'center', marginBottom: '0.5rem' }}>
-              Customer Alert Sent!
-            </h2>
-            <p style={{ color: '#4b5563', fontSize: '0.9rem', textAlign: 'center', marginBottom: '1.2rem', lineHeight: 1.5 }}>
-              A customer previously subscribed for <strong>{alertPopup.shoe_name}</strong> (Size US {alertPopup.size}). Now that it is restocked, a genuine back-in-stock email has been sent!
-            </p>
-
-            <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem' }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase' }}>Notified Recipient:</span>
-              {alertPopup.customers.map((c, i) => (
-                <div key={i} style={{ fontWeight: 700, color: '#111827', fontSize: '0.9rem', marginTop: '0.2rem' }}>
-                  • {c.email}
-                </div>
-              ))}
-            </div>
-
+      <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '2px solid #f1f5f9', marginBottom: '2rem', flexWrap: 'wrap' }}>
+        {[
+          { id: 'catalog', label: `Catalog & Stock (${products.length})`, icon: Package },
+          { id: 'orders', label: `Customer Orders (${orders.length})`, icon: ShoppingBag },
+          { id: 'inquiries', label: `Contact Inquiries (${inquiries.length})`, icon: Mail },
+          { id: 'customers', label: `Registered Customers (${customers.length})`, icon: Users },
+        ].map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
             <button
-              onClick={() => setAlertPopup(null)}
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
               style={{
-                width: '100%',
-                padding: '0.75rem',
-                background: '#111827',
-                color: '#fff',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '0.75rem 1.25rem',
                 border: 'none',
-                borderRadius: '8px',
-                fontWeight: 700,
-                cursor: 'pointer'
+                borderBottom: isActive ? '3px solid #0f172a' : '3px solid transparent',
+                background: 'transparent',
+                color: isActive ? '#0f172a' : '#64748b',
+                fontWeight: isActive ? 800 : 600,
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
               }}
             >
-              Close
+              <Icon size={16} />
+              {tab.label}
             </button>
-          </div>
-        </div>
-      )}
+          );
+        })}
+      </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '4rem', color: '#6b7280' }}>Loading store data...</div>
-      ) : activeTab === 'inventory' ? (
-        /* Inventory Catalog View */
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-          {catalog.map((shoe) => (
-            <div key={shoe.id} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '14px', padding: '1.8rem', boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f3f4f6', paddingBottom: '1rem', marginBottom: '1.2rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <img
-                    src={shoe.images?.[0]?.startsWith('http') ? shoe.images[0] : `/products/${shoe.images?.[0] || '1.jpg'}`}
-                    alt={shoe.name}
-                    style={{ width: '65px', height: '65px', objectFit: 'contain', background: '#f8f9fa', borderRadius: '8px' }}
-                    onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=100'; }}
-                  />
-                  <div>
-                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase' }}>
-                      {shoe.brand_name} • {shoe.category_name} ({shoe.gender})
-                    </div>
-                    <h2 style={{ fontSize: '1.3rem', fontWeight: 800 }}>{shoe.name}</h2>
-                    <span style={{ fontWeight: 800, color: '#111827' }}>${Number(shoe.price).toFixed(2)}</span>
-                  </div>
-                </div>
+        <div style={{ padding: '4rem', textAlign: 'center', color: '#64748b' }}>Loading store data from database...</div>
+      ) : (
+        <>
+          {/* TAB 1: CATALOG */}
+          {activeTab === 'catalog' && (
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', fontWeight: 800 }}>
+                      <th style={{ padding: '1rem' }}>SHOE MODEL</th>
+                      <th style={{ padding: '1rem' }}>BRAND & CATEGORY</th>
+                      <th style={{ padding: '1rem' }}>PRICE</th>
+                      <th style={{ padding: '1rem' }}>TOTAL UNITS</th>
+                      <th style={{ padding: '1rem' }}>VARIANTS & SIZES</th>
+                      <th style={{ padding: '1rem' }}>STATUS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.map((p) => {
+                      const img = (Array.isArray(p.images) && p.images.length > 0)
+                        ? (p.images[0].startsWith('http') ? p.images[0] : `/products/${p.images[0]}`)
+                        : 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200';
 
-                {shoe.pending_notifications > 0 && (
-                  <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '0.4rem 0.9rem', borderRadius: '9999px', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Mail size={16} /> {shoe.pending_notifications} customer(s) waiting for restock
-                  </div>
-                )}
-              </div>
-
-              <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#374151', marginBottom: '0.8rem' }}>Inventory by Size:</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
-                {shoe.variants?.map((v) => {
-                  const isOutOfStock = v.stock_quantity === 0;
-
-                  return (
-                    <div
-                      key={v.id}
-                      style={{
-                        border: isOutOfStock ? '1px solid #fca5a5' : '1px solid #e5e7eb',
-                        borderRadius: '10px',
-                        padding: '1rem',
-                        background: isOutOfStock ? '#fff5f5' : '#f9fafb',
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontWeight: 700, fontSize: '0.9rem' }}>
-                        <span>Size: US {v.size_value}</span>
-                        <span style={{ color: isOutOfStock ? '#dc2626' : '#16a34a' }}>
-                          {isOutOfStock ? '0 (Out of Stock)' : `${v.stock_quantity} in stock`}
-                        </span>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.8rem' }}>
-                        <input
-                          type="number"
-                          min="0"
-                          placeholder={v.stock_quantity.toString()}
-                          value={stockInputs[v.id] !== undefined ? stockInputs[v.id] : ''}
-                          onChange={(e) => setStockInputs({ ...stockInputs, [v.id]: e.target.value })}
-                          style={{
-                            width: '80px',
-                            padding: '0.4rem 0.6rem',
-                            border: '1px solid #d1d5db',
-                            borderRadius: '6px',
-                            fontSize: '0.85rem',
-                          }}
-                        />
-                        <button
-                          onClick={() => handleStockSave(v.id, v.size_value)}
-                          style={{
-                            flex: 1,
-                            background: '#111827',
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: '6px',
-                            fontSize: '0.8rem',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          Update Stock
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                      return (
+                        <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <img
+                              src={img}
+                              alt={p.name}
+                              style={{ width: '48px', height: '48px', objectFit: 'contain', background: '#f8fafc', borderRadius: '6px', padding: '4px' }}
+                              onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200'; }}
+                            />
+                            <div>
+                              <div style={{ fontWeight: 800, color: '#0f172a' }}>{p.name}</div>
+                              <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>SKU: SHOE-{String(p.id).padStart(3, '0')}</div>
+                            </div>
+                          </td>
+                          <td style={{ padding: '1rem' }}>
+                            <div style={{ fontWeight: 700, color: '#334155' }}>{p.brand_name}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{p.category_name} • {p.gender}</div>
+                          </td>
+                          <td style={{ padding: '1rem', fontWeight: 800, color: '#0f172a' }}>
+                            ${Number(p.price).toFixed(2)}
+                          </td>
+                          <td style={{ padding: '1rem', fontWeight: 800 }}>
+                            <span style={{ color: (p.total_stock || 0) <= 5 ? '#e11d48' : '#10b981' }}>
+                              {p.total_stock || 0} pairs
+                            </span>
+                          </td>
+                          <td style={{ padding: '1rem' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                              {p.variants?.map((v) => (
+                                <div
+                                  key={v.id}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    background: '#f8fafc',
+                                    border: '1px solid #e2e8f0',
+                                    padding: '2px 6px',
+                                    borderRadius: '6px',
+                                    fontSize: '0.75rem'
+                                  }}
+                                >
+                                  <strong>US {v.size_value}:</strong>
+                                  {editingVariantId === v.id ? (
+                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+                                      <input
+                                        type="number"
+                                        value={editStockVal}
+                                        onChange={(e) => setEditStockVal(e.target.value)}
+                                        style={{ width: '45px', padding: '2px', fontSize: '0.75rem' }}
+                                      />
+                                      <button onClick={() => handleUpdateStock(v.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#10b981' }}><Save size={12} /></button>
+                                      <button onClick={() => setEditingVariantId(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#ef4444' }}><X size={12} /></button>
+                                    </div>
+                                  ) : (
+                                    <span
+                                      onClick={() => {
+                                        setEditingVariantId(v.id);
+                                        setEditStockVal(v.stock_quantity);
+                                      }}
+                                      style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '2px' }}
+                                      title="Click to edit stock"
+                                    >
+                                      {v.stock_quantity} <Edit2 size={10} color="#94a3b8" />
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                          <td style={{ padding: '1rem' }}>
+                            <span
+                              style={{
+                                background: (p.total_stock || 0) > 0 ? '#dcfce7' : '#fee2e2',
+                                color: (p.total_stock || 0) > 0 ? '#15803d' : '#b91c1c',
+                                fontSize: '0.75rem',
+                                fontWeight: 800,
+                                padding: '0.2rem 0.6rem',
+                                borderRadius: '4px'
+                              }}
+                            >
+                              {(p.total_stock || 0) > 0 ? 'ACTIVE' : 'OUT OF STOCK'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
-          ))}
-        </div>
-      ) : (
-        /* Orders View */
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {orders.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '3rem', color: '#6b7280' }}>No customer orders found yet.</div>
-          ) : (
-            orders.map((ord) => (
-              <div key={ord.id} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '14px', padding: '1.8rem', boxShadow: '0 2px 6px rgba(0,0,0,0.03)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f3f4f6', paddingBottom: '1rem', marginBottom: '1rem' }}>
-                  <div>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#6b7280' }}>ORDER REF</span>
-                    <h2 style={{ fontSize: '1.3rem', fontWeight: 800 }}>{ord.order_number}</h2>
-                    <span style={{ fontSize: '0.85rem', color: '#9ca3af' }}>{new Date(ord.created_at).toLocaleString()}</span>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <label style={{ fontSize: '0.85rem', fontWeight: 700 }}>Delivery Status:</label>
-                    <select
-                      value={ord.status}
-                      onChange={(e) => handleStatusChange(ord.id, e.target.value)}
-                      style={{
-                        padding: '0.5rem 1rem',
-                        borderRadius: '8px',
-                        fontWeight: 700,
-                        fontSize: '0.85rem',
-                        border: '1px solid #d1d5db',
-                        background: ord.status === 'delivered' ? '#dcfce7' : ord.status === 'shipped' ? '#e0e7ff' : ord.status === 'cancelled' ? '#fee2e2' : '#fef9c3',
-                        color: ord.status === 'delivered' ? '#166534' : ord.status === 'shipped' ? '#3730a3' : ord.status === 'cancelled' ? '#991b1b' : '#854d0e',
-                      }}
-                    >
-                      <option value="processing">Processing</option>
-                      <option value="shipped">Shipped</option>
-                      <option value="delivered">Delivered</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-                  <div>
-                    <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#374151', marginBottom: '0.5rem' }}>Shipping & Customer Info</h3>
-                    <p style={{ margin: 0, fontSize: '0.9rem' }}><strong>Name:</strong> {ord.customer_name}</p>
-                    <p style={{ margin: '0.2rem 0', fontSize: '0.9rem' }}><strong>Email:</strong> {ord.customer_email}</p>
-                    <p style={{ margin: '0.2rem 0', fontSize: '0.9rem' }}><strong>Phone:</strong> {ord.customer_phone}</p>
-                    <p style={{ margin: '0.2rem 0', fontSize: '0.9rem' }}><strong>Address:</strong> {ord.shipping_address}</p>
-                    <p style={{ margin: '0.2rem 0', fontSize: '0.9rem' }}><strong>Payment:</strong> {ord.payment_method}</p>
-                  </div>
-
-                  <div>
-                    <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#374151', marginBottom: '0.5rem' }}>Purchased Items</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      {ord.items?.map((item) => (
-                        <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', background: '#f9fafb', padding: '0.6rem', borderRadius: '6px' }}>
-                          <span>{item.product_name} (Size: US {item.size}) × {item.quantity}</span>
-                          <strong>${(Number(item.unit_price) * item.quantity).toFixed(2)}</strong>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ textAlign: 'right', marginTop: '0.8rem', fontSize: '1.1rem', fontWeight: 800 }}>
-                      Total: ${Number(ord.total_amount).toFixed(2)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))
           )}
-        </div>
+
+          {/* TAB 2: ORDERS */}
+          {activeTab === 'orders' && (
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+              {orders.length === 0 ? (
+                <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>
+                  No customer orders recorded in the system yet.
+                </div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', fontWeight: 800 }}>
+                      <th style={{ padding: '1rem' }}>ORDER #</th>
+                      <th style={{ padding: '1rem' }}>CUSTOMER</th>
+                      <th style={{ padding: '1rem' }}>AMOUNT</th>
+                      <th style={{ padding: '1rem' }}>PAYMENT</th>
+                      <th style={{ padding: '1rem' }}>STATUS</th>
+                      <th style={{ padding: '1rem' }}>ACTION</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orders.map((o) => (
+                      <tr key={o.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '1rem', fontWeight: 800, color: '#0f172a' }}>{o.order_number}</td>
+                        <td style={{ padding: '1rem' }}>
+                          <div>{o.customer_name}</div>
+                          <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{o.customer_phone || o.customer_email}</div>
+                        </td>
+                        <td style={{ padding: '1rem', fontWeight: 800 }}>${Number(o.total_amount).toFixed(2)}</td>
+                        <td style={{ padding: '1rem' }}>{o.payment_method?.toUpperCase()}</td>
+                        <td style={{ padding: '1rem' }}>
+                          <span style={{ padding: '0.25rem 0.6rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 800, background: o.status === 'delivered' ? '#dcfce7' : '#fef3c7', color: o.status === 'delivered' ? '#15803d' : '#b45309' }}>
+                            {o.status?.toUpperCase()}
+                          </span>
+                        </td>
+                        <td style={{ padding: '1rem' }}>
+                          <select
+                            value={o.status}
+                            onChange={(e) => handleUpdateOrderStatus(o.id, e.target.value)}
+                            style={{ padding: '0.35rem 0.6rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.8rem', fontWeight: 600 }}
+                          >
+                            <option value="pending">Pending</option>
+                            <option value="processing">Processing</option>
+                            <option value="shipped">Shipped</option>
+                            <option value="delivered">Delivered</option>
+                            <option value="cancelled">Cancelled</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
+          {/* TAB 3: CONTACT INQUIRIES */}
+          {activeTab === 'inquiries' && (
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+              {inquiries.length === 0 ? (
+                <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>
+                  No customer messages submitted via Contact Us yet.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {inquiries.map((inq) => (
+                    <div key={inq.id} style={{ padding: '1.2rem', borderBottom: '1px solid #f1f5f9' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                        <div>
+                          <strong style={{ fontSize: '0.95rem', color: '#0f172a' }}>{inq.name}</strong>
+                          <span style={{ color: '#64748b', fontSize: '0.85rem', marginLeft: '8px' }}>({inq.email})</span>
+                        </div>
+                        <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{inq.created_at}</span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: '0.9rem', color: '#334155', background: '#f8fafc', padding: '0.8rem', borderRadius: '8px' }}>
+                        {inq.message}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 4: REGISTERED CUSTOMERS */}
+          {activeTab === 'customers' && (
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', fontWeight: 800 }}>
+                    <th style={{ padding: '1rem' }}>CUSTOMER NAME</th>
+                    <th style={{ padding: '1rem' }}>EMAIL ADDRESS</th>
+                    <th style={{ padding: '1rem' }}>ROLE</th>
+                    <th style={{ padding: '1rem' }}>JOINED DATE</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {customers.map((c) => (
+                    <tr key={c.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '1rem', fontWeight: 700, color: '#0f172a' }}>{c.name}</td>
+                      <td style={{ padding: '1rem', color: '#475569' }}>{c.email}</td>
+                      <td style={{ padding: '1rem' }}>
+                        <span style={{ background: '#f1f5f9', color: '#475569', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700 }}>
+                          {c.role}
+                        </span>
+                      </td>
+                      <td style={{ padding: '1rem', color: '#94a3b8' }}>{c.created_at ? new Date(c.created_at).toLocaleDateString() : 'Active'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
-      {/* Modal: Add New Shoe with Picture URL & File Preview */}
+      {/* MODAL: ADD NEW SHOE MODEL */}
       {showAddModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', padding: '2.5rem', borderRadius: '16px', maxWidth: '560px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem' }}>
-              <h2 style={{ fontSize: '1.6rem', fontWeight: 800, margin: 0 }}>Add New Footwear</h2>
-              <button onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '1rem' }}>
+          <div style={{ background: '#fff', width: '100%', maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '16px', padding: '2rem', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.8rem' }}>
+              <div>
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>Add New Footwear Model</h2>
+                <p style={{ margin: '2px 0 0', color: '#64748b', fontSize: '0.85rem' }}>Create product details and assign stock variants.</p>
+              </div>
+              <button onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleCreateShoe} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <form onSubmit={handleCreateProductSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.3rem' }}>Shoe Model Name *</label>
-                <input required type="text" placeholder="e.g. Nike Air Max Pulse" value={newShoe.name} onChange={(e) => setNewShoe({ ...newShoe, name: e.target.value })} style={{ width: '100%', padding: '0.65rem', border: '1px solid #d1d5db', borderRadius: '6px' }} />
-              </div>
-
-              {/* Picture Input & Live Preview */}
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.3rem' }}>
-                  Shoe Picture (Image URL or Filename) *
-                </label>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#334155', marginBottom: '0.4rem' }}>Shoe Model Name *</label>
                 <input
-                  required
                   type="text"
-                  placeholder="https://... or 1.jpg"
-                  value={newShoe.image_url}
-                  onChange={(e) => setNewShoe({ ...newShoe, image_url: e.target.value })}
-                  style={{ width: '100%', padding: '0.65rem', border: '1px solid #d1d5db', borderRadius: '6px' }}
+                  required
+                  placeholder="e.g. Nike Air Max Pegasus 40"
+                  value={newProduct.name}
+                  onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                  style={{ width: '100%', padding: '0.65rem 0.9rem', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.9rem' }}
                 />
-
-                {newShoe.image_url && (
-                  <div style={{ marginTop: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.8rem', background: '#f9fafb', padding: '0.6rem', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-                    <img
-                      src={newShoe.image_url.startsWith('http') ? newShoe.image_url : `/products/${newShoe.image_url}`}
-                      alt="Preview"
-                      style={{ width: '50px', height: '50px', objectFit: 'contain', borderRadius: '4px' }}
-                      onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=100'; }}
-                    />
-                    <span style={{ fontSize: '0.8rem', color: '#6b7280' }}>Preview of product card thumbnail</span>
-                  </div>
-                )}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.3rem' }}>Brand</label>
-                  <select value={newShoe.brand_id} onChange={(e) => setNewShoe({ ...newShoe, brand_id: e.target.value })} style={{ width: '100%', padding: '0.65rem', border: '1px solid #d1d5db', borderRadius: '6px' }}>
-                    {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#334155', marginBottom: '0.4rem' }}>Brand *</label>
+                  <select
+                    value={newProduct.brand_id}
+                    onChange={(e) => setNewProduct({ ...newProduct, brand_id: e.target.value })}
+                    style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.85rem' }}
+                  >
+                    {brands.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
                   </select>
                 </div>
+
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.3rem' }}>Category</label>
-                  <select value={newShoe.category_id} onChange={(e) => setNewShoe({ ...newShoe, category_id: e.target.value })} style={{ width: '100%', padding: '0.65rem', border: '1px solid #d1d5db', borderRadius: '6px' }}>
-                    {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#334155', marginBottom: '0.4rem' }}>Category *</label>
+                  <select
+                    value={newProduct.category_id}
+                    onChange={(e) => setNewProduct({ ...newProduct, category_id: e.target.value })}
+                    style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.85rem' }}
+                  >
+                    {categories.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
                   </select>
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.3rem' }}>Target Gender</label>
-                  <select value={newShoe.gender} onChange={(e) => setNewShoe({ ...newShoe, gender: e.target.value })} style={{ width: '100%', padding: '0.65rem', border: '1px solid #d1d5db', borderRadius: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#334155', marginBottom: '0.4rem' }}>Target Gender *</label>
+                  <select
+                    value={newProduct.gender}
+                    onChange={(e) => setNewProduct({ ...newProduct, gender: e.target.value })}
+                    style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.85rem' }}
+                  >
                     <option value="Men">Men</option>
                     <option value="Women">Women</option>
                     <option value="Kids">Kids</option>
                     <option value="Unisex">Unisex</option>
                   </select>
                 </div>
+
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.3rem' }}>Retail Price ($) *</label>
-                  <input required type="number" step="0.01" placeholder="129.99" value={newShoe.price} onChange={(e) => setNewShoe({ ...newShoe, price: e.target.value })} style={{ width: '100%', padding: '0.65rem', border: '1px solid #d1d5db', borderRadius: '6px' }} />
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#334155', marginBottom: '0.4rem' }}>Retail Price ($) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    placeholder="129.99"
+                    value={newProduct.price}
+                    onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+                    style={{ width: '100%', padding: '0.65rem 0.9rem', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.9rem' }}
+                  />
                 </div>
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.3rem' }}>Description *</label>
-                <textarea required rows="2" placeholder="Shoe features, cushioning, performance details..." value={newShoe.description} onChange={(e) => setNewShoe({ ...newShoe, description: e.target.value })} style={{ width: '100%', padding: '0.65rem', border: '1px solid #d1d5db', borderRadius: '6px' }} />
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#334155', marginBottom: '0.4rem' }}>Primary Image URL</label>
+                <input
+                  type="url"
+                  placeholder="https://images.unsplash.com/photo-..."
+                  value={newProduct.image_url}
+                  onChange={(e) => setNewProduct({ ...newProduct, image_url: e.target.value })}
+                  style={{ width: '100%', padding: '0.65rem 0.9rem', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.85rem' }}
+                />
               </div>
 
-              {/* Initial Size Variants and Stock */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.4rem' }}>
-                  Initial Stock by Size:
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
-                  {newShoe.sizes.map((sz, idx) => (
-                    <div key={sz.size_value} style={{ border: '1px solid #e5e7eb', borderRadius: '6px', padding: '0.4rem', textAlign: 'center', background: '#f9fafb' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700 }}>US {sz.size_value}</span>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: '#334155', marginBottom: '0.4rem' }}>Product Description</label>
+                <textarea
+                  rows="2"
+                  placeholder="High performance athletic running shoe with responsive foam sole..."
+                  value={newProduct.description}
+                  onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
+                  style={{ width: '100%', padding: '0.65rem 0.9rem', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '0.85rem' }}
+                />
+              </div>
+
+              {/* Sizes & Stock Variants */}
+              <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>Size Variants & Stock Units</span>
+                  <button
+                    type="button"
+                    onClick={handleAddSizeVariant}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#fff', border: '1px solid #cbd5e1', padding: '0.3rem 0.6rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    <Plus size={12} /> Add Size
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {newProduct.sizes.map((sz, idx) => (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#64748b', width: '30px' }}>US</span>
+                      <input
+                        type="text"
+                        placeholder="Size (e.g. 9)"
+                        value={sz.size_value}
+                        onChange={(e) => {
+                          const updated = [...newProduct.sizes];
+                          updated[idx].size_value = e.target.value;
+                          setNewProduct({ ...newProduct, sizes: updated });
+                        }}
+                        style={{ width: '100px', padding: '0.4rem 0.6rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.8rem' }}
+                      />
                       <input
                         type="number"
-                        min="0"
+                        placeholder="Stock"
                         value={sz.stock_quantity}
-                        onChange={(e) => handleSizeStockChange(idx, e.target.value)}
-                        style={{ width: '100%', textAlign: 'center', border: '1px solid #d1d5db', borderRadius: '4px', padding: '0.2rem', marginTop: '0.2rem', fontSize: '0.85rem' }}
+                        onChange={(e) => {
+                          const updated = [...newProduct.sizes];
+                          updated[idx].stock_quantity = e.target.value;
+                          setNewProduct({ ...newProduct, sizes: updated });
+                        }}
+                        style={{ width: '100px', padding: '0.4rem 0.6rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.8rem' }}
                       />
+                      {newProduct.sizes.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSizeVariant(idx)}
+                          style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                <button type="submit" style={{ flex: 1, padding: '0.8rem', background: '#111827', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>
-                  Save & Publish Shoe
-                </button>
-                <button type="button" onClick={() => setShowAddModal(false)} style={{ padding: '0.8rem 1.2rem', background: '#f3f4f6', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>
+              {/* Form Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.8rem', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  style={{ padding: '0.65rem 1.2rem', borderRadius: '8px', border: '1px solid #d1d5db', background: '#fff', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}
+                >
                   Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingProduct}
+                  style={{ padding: '0.65rem 1.4rem', borderRadius: '8px', border: 'none', background: '#0f172a', color: '#fff', fontWeight: 800, fontSize: '0.85rem', cursor: submittingProduct ? 'not-allowed' : 'pointer' }}
+                >
+                  {submittingProduct ? 'Saving Product...' : 'Save Product to Vault'}
                 </button>
               </div>
             </form>

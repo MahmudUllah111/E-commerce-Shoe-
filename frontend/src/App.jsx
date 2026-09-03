@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ProductDetail from './pages/ProductDetail';
@@ -15,8 +15,8 @@ import CustomerLogin from './pages/CustomerLogin';
 import CustomerRegister from './pages/CustomerRegister';
 import AdminLogin from './pages/AdminLogin';
 import { ShopProvider, useShop } from './context/ShopContext';
-import { getProducts } from './services/api';
-import { ChevronLeft, ChevronRight, ArrowRight, Tag, CreditCard, ShieldCheck, X } from 'lucide-react';
+import { getProducts, getBrands } from './services/api';
+import { ChevronLeft, ChevronRight, ArrowRight, Tag, CreditCard, ShieldCheck, X, ShoppingBag, Star, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
 
 function AdminProtectedRoute({ children }) {
   const { currentUser } = useShop();
@@ -26,7 +26,7 @@ function AdminProtectedRoute({ children }) {
   return children;
 }
 
-// Edge-to-Edge Cinematic Hero Slider
+// Hero Carousel for Landing Page
 function HeroCarousel() {
   const slides = [
     {
@@ -35,7 +35,7 @@ function HeroCarousel() {
       title: 'Summer 2026 Collection',
       subtitle: 'Engineered street-ready cushioning and high-traction performance silhouettes.',
       ctaText: 'Shop Sale',
-      ctaLink: '/?category=sneakers',
+      ctaLink: '/products?category=sneakers',
       bgImg: 'https://images.unsplash.com/photo-1556906781-9a412961c28c?w=1600&auto=format&fit=crop&q=80',
       shoeImg: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=900&auto=format&fit=crop&q=80',
     },
@@ -45,7 +45,7 @@ function HeroCarousel() {
       title: 'Performance & Athletics',
       subtitle: 'Lightweight breathable mesh for maximum comfort all day long.',
       ctaText: 'Explore Sports',
-      ctaLink: '/?category=sports',
+      ctaLink: '/products?category=sports',
       bgImg: 'https://images.unsplash.com/photo-1518002171953-a080ee817e1f?w=1600&auto=format&fit=crop&q=80',
       shoeImg: 'https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=900&auto=format&fit=crop&q=80',
     },
@@ -55,7 +55,7 @@ function HeroCarousel() {
       title: 'Crafted For Modern Comfort',
       subtitle: 'Use promo code WELCOME10 at checkout on orders over $100.',
       ctaText: 'Discover All',
-      ctaLink: '/',
+      ctaLink: '/products',
       bgImg: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1600&auto=format&fit=crop&q=80',
       shoeImg: 'https://images.unsplash.com/photo-1551107696-a4b0c5a0d9a2?w=900&auto=format&fit=crop&q=80',
     }
@@ -204,35 +204,17 @@ function HeroCarousel() {
       >
         <ChevronRight size={26} />
       </button>
-
-      <div style={{ position: 'absolute', bottom: '24px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '8px', zIndex: 10 }}>
-        {slides.map((_, idx) => (
-          <button
-            key={idx}
-            onClick={() => setCurrent(idx)}
-            aria-label={`Slide ${idx + 1}`}
-            style={{
-              width: current === idx ? '32px' : '10px',
-              height: '8px',
-              borderRadius: '9999px',
-              background: current === idx ? '#e11d48' : 'rgba(255,255,255,0.4)',
-              border: 'none',
-              cursor: 'pointer',
-              transition: 'all 0.3s ease',
-            }}
-          />
-        ))}
-      </div>
     </div>
   );
 }
 
+// Category Cards
 function CategoryShowcase() {
   const categories = [
-    { title: "MEN'S COLLECTION", link: '/?gender=Men', img: 'https://images.unsplash.com/photo-1533867617858-e7b97e060509?w=600&auto=format&fit=crop&q=80' },
-    { title: "WOMEN'S COLLECTION", link: '/?gender=Women', img: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?w=600&auto=format&fit=crop&q=80' },
-    { title: "KIDS' COLLECTION", link: '/?gender=Kids', img: 'https://images.unsplash.com/photo-1514989940723-e8e51635b782?w=600&auto=format&fit=crop&q=80' },
-    { title: "SNEAKER STUDIO", link: '/?category=sneakers', img: 'https://images.unsplash.com/photo-1552346154-21d32810aba3?w=600&auto=format&fit=crop&q=80' },
+    { title: "MEN'S COLLECTION", link: '/products?gender=Men', img: 'https://images.unsplash.com/photo-1533867617858-e7b97e060509?w=600&auto=format&fit=crop&q=80' },
+    { title: "WOMEN'S COLLECTION", link: '/products?gender=Women', img: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?w=600&auto=format&fit=crop&q=80' },
+    { title: "KIDS' COLLECTION", link: '/products?gender=Kids', img: 'https://images.unsplash.com/photo-1514989940723-e8e51635b782?w=600&auto=format&fit=crop&q=80' },
+    { title: "SNEAKER STUDIO", link: '/products?category=sneakers', img: 'https://images.unsplash.com/photo-1552346154-21d32810aba3?w=600&auto=format&fit=crop&q=80' },
   ];
 
   return (
@@ -272,6 +254,7 @@ function CategoryShowcase() {
   );
 }
 
+// Promo Voucher Strip
 function PromoVoucherStrip() {
   return (
     <div style={{ maxWidth: '1280px', margin: '0 auto 3.5rem', padding: '0 1.5rem' }}>
@@ -300,93 +283,126 @@ function PromoVoucherStrip() {
   );
 }
 
-function ProductCard({ shoe }) {
+// Kizora-Style Product Card
+function KizoraProductCard({ shoe }) {
+  const { addToCart } = useShop();
+  const navigate = useNavigate();
+
   const imgSource = shoe.images?.[0]?.startsWith('http')
     ? shoe.images[0]
     : 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600';
 
+  const handleQuickAdd = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const availableVariant = shoe.variants?.find((v) => v.stock_quantity > 0) || shoe.variants?.[0];
+    if (availableVariant) {
+      addToCart(shoe, availableVariant, 1);
+    } else {
+      navigate(`/product/${shoe.id}`);
+    }
+  };
+
+  const sku = `SHOE-${String(shoe.id).padStart(3, '0')}`;
+
   return (
-    <Link
-      to={`/product/${shoe.id}`}
+    <div
       style={{
-        border: '1px solid #e5e7eb',
-        borderRadius: '12px',
-        overflow: 'hidden',
         background: '#fff',
+        borderRadius: '16px',
+        border: '1px solid #eef0f2',
+        overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
-        textDecoration: 'none',
-        color: 'inherit',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+        boxShadow: '0 4px 14px rgba(0,0,0,0.03)',
+        transition: 'transform 0.15s, box-shadow 0.15s',
       }}
     >
-      <div style={{ height: '230px', background: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-        {shoe.is_new === 1 && (
-          <span style={{ position: 'absolute', top: '12px', left: '12px', background: '#111827', color: '#fff', fontSize: '0.7rem', fontWeight: 800, padding: '0.2rem 0.6rem', borderRadius: '4px' }}>
-            NEW
-          </span>
-        )}
-        <img
-          src={imgSource}
-          alt={shoe.name}
-          style={{ maxHeight: '82%', maxWidth: '85%', objectFit: 'contain' }}
-          onError={(e) => {
-            e.target.src = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600';
-          }}
-        />
-      </div>
-
-      <div style={{ padding: '1.2rem', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-        <div>
-          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            {shoe.brand_name} • {shoe.gender}
-          </div>
-          <h3 style={{ fontSize: '1.05rem', fontWeight: 800, margin: '0.35rem 0 0.6rem 0' }}>{shoe.name}</h3>
+      <Link to={`/product/${shoe.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+        <div style={{ height: '230px', background: '#fafafa', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          {shoe.is_new === 1 && (
+            <span style={{ position: 'absolute', top: '12px', left: '12px', background: '#0f172a', color: '#fff', fontSize: '0.65rem', fontWeight: 800, padding: '0.2rem 0.6rem', borderRadius: '4px', letterSpacing: '0.5px' }}>
+              NEW
+            </span>
+          )}
+          <img
+            src={imgSource}
+            alt={shoe.name}
+            style={{ maxHeight: '85%', maxWidth: '85%', objectFit: 'contain' }}
+            onError={(e) => {
+              e.target.src = 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600';
+            }}
+          />
         </div>
 
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.4rem' }}>
+        <div style={{ padding: '1.25rem' }}>
+          {/* Rating & Category Tag */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.8rem', color: '#f59e0b', fontWeight: 700 }}>
+              <Star size={13} fill="#f59e0b" />
+              <span>{shoe.rating}</span>
+              <span style={{ color: '#94a3b8', fontWeight: 500 }}>({shoe.reviews_count || 12})</span>
+            </div>
+            <span style={{ background: '#f1f5f9', color: '#475569', fontSize: '0.7rem', fontWeight: 700, padding: '0.15rem 0.5rem', borderRadius: '9999px' }}>
+              {shoe.category_name || 'Sneakers'}
+            </span>
+          </div>
+
+          {/* Title */}
+          <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.2rem', lineHeight: 1.35 }}>
+            {shoe.name}
+          </h3>
+
+          {/* SKU */}
+          <div style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600, marginBottom: '1rem' }}>
+            SKU: {sku}
+          </div>
+
+          {/* Price & Add to Cart Button */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
             <div>
-              <span style={{ fontWeight: 800, fontSize: '1.15rem', color: '#111827' }}>${Number(shoe.price).toFixed(2)}</span>
+              <span style={{ fontSize: '1.2rem', fontWeight: 900, color: '#0f172a' }}>
+                ${Number(shoe.price).toFixed(2)}
+              </span>
               {shoe.original_price && (
-                <span style={{ marginLeft: '0.5rem', textDecoration: 'line-through', color: '#9ca3af', fontSize: '0.85rem' }}>
+                <span style={{ fontSize: '0.8rem', textDecoration: 'line-through', color: '#94a3b8', marginLeft: '6px' }}>
                   ${Number(shoe.original_price).toFixed(2)}
                 </span>
               )}
             </div>
-            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f59e0b' }}>★ {shoe.rating}</span>
-          </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '0.9rem' }}>
-            {shoe.variants?.map((v) => (
-              <span
-                key={v.id}
-                style={{
-                  fontSize: '0.75rem',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  border: '1px solid #e5e7eb',
-                  opacity: v.stock_quantity === 0 ? 0.4 : 1,
-                  textDecoration: v.stock_quantity === 0 ? 'line-through' : 'none',
-                  fontWeight: 600,
-                }}
-              >
-                {v.size_value}
-              </span>
-            ))}
+            <button
+              onClick={handleQuickAdd}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: '#0f172a',
+                color: '#fff',
+                border: 'none',
+                padding: '0.55rem 1rem',
+                borderRadius: '8px',
+                fontWeight: 700,
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+              }}
+            >
+              <ShoppingBag size={14} /> Add to Cart
+            </button>
           </div>
         </div>
-      </div>
-    </Link>
+      </Link>
+    </div>
   );
 }
 
+// Horizontal Carousel for Home Page
 function ProductCarouselSection({ title, subtitle, products }) {
   const scrollRef = useRef(null);
 
   const scroll = (direction) => {
     if (scrollRef.current) {
-      const scrollAmount = direction === 'left' ? -300 : 300;
+      const scrollAmount = direction === 'left' ? -310 : 310;
       scrollRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
     }
   };
@@ -430,7 +446,7 @@ function ProductCarouselSection({ title, subtitle, products }) {
       >
         {products.map((shoe) => (
           <div key={shoe.id} style={{ flex: '0 0 280px', scrollSnapAlign: 'start' }}>
-            <ProductCard shoe={shoe} />
+            <KizoraProductCard shoe={shoe} />
           </div>
         ))}
       </div>
@@ -438,26 +454,13 @@ function ProductCarouselSection({ title, subtitle, products }) {
   );
 }
 
-function Home() {
+// 1. CLEAN HOMEPAGE (Route: '/')
+function HomePage() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const location = useLocation();
-
-  const params = new URLSearchParams(location.search);
-  const categoryFilter = params.get('category');
-  const genderFilter = params.get('gender');
-  const searchFilter = params.get('search');
-  const isFiltering = Boolean(categoryFilter || genderFilter || searchFilter);
 
   useEffect(() => {
-    setLoading(true);
-    const filterParams = {
-      category: categoryFilter || undefined,
-      gender: genderFilter || undefined,
-      search: searchFilter || undefined,
-    };
-
-    getProducts(filterParams)
+    getProducts()
       .then((res) => {
         setProducts(res.data || []);
         setLoading(false);
@@ -466,99 +469,357 @@ function Home() {
         console.error('Failed to load shoes:', err);
         setLoading(false);
       });
-  }, [location.search, categoryFilter, genderFilter, searchFilter]);
+  }, []);
 
   const bestSellers = [...products].sort((a, b) => b.rating - a.rating);
   const newArrivals = [...products].filter((p) => p.is_new === 1 || p.id % 2 === 0);
 
-  const getFilterLabel = () => {
-    if (categoryFilter) return `Category: ${categoryFilter.toUpperCase()}`;
-    if (genderFilter) return `${genderFilter.toUpperCase()}'S FOOTWEAR`;
-    if (searchFilter) return `Search results for "${searchFilter}"`;
-    return 'FOOTWEAR COLLECTION';
-  };
-
   return (
     <div>
-      {/* Show banners and category tiles ONLY on default home view */}
-      {!isFiltering && (
-        <>
-          <HeroCarousel />
-          <CategoryShowcase />
-          <PromoVoucherStrip />
-        </>
-      )}
-
-      {/* Filter Mode Header Banner */}
-      {isFiltering && (
-        <div style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', padding: '2rem 1.5rem', marginBottom: '2.5rem' }}>
-          <div style={{ maxWidth: '1280px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-            <div>
-              <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#e11d48', letterSpacing: '1px' }}>FILTERED VIEW</span>
-              <h1 style={{ fontSize: '2rem', fontWeight: 900, margin: '0.2rem 0', color: '#0f172a' }}>{getFilterLabel()}</h1>
-              <p style={{ margin: 0, color: '#64748b', fontSize: '0.9rem' }}>Showing genuine footwear matching your selection</p>
-            </div>
-            <Link
-              to="/"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#fff', border: '1px solid #cbd5e1', padding: '0.6rem 1.2rem', borderRadius: '8px', color: '#0f172a', fontWeight: 700, textDecoration: 'none', fontSize: '0.85rem' }}
-            >
-              <X size={16} /> Clear Filter
-            </Link>
-          </div>
-        </div>
-      )}
+      <HeroCarousel />
+      <CategoryShowcase />
+      <PromoVoucherStrip />
 
       {loading ? (
-        <div style={{ padding: '5rem', textAlign: 'center', color: '#6b7280' }}>Loading matching footwear...</div>
-      ) : products.length === 0 ? (
-        <div style={{ maxWidth: '600px', margin: '5rem auto', textAlign: 'center', padding: '2rem' }}>
-          <h3 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '0.5rem' }}>No shoes found in this section</h3>
-          <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>Try choosing another category or browsing our full collection.</p>
-          <Link to="/" style={{ padding: '0.8rem 1.5rem', background: '#111827', color: '#fff', borderRadius: '8px', textDecoration: 'none', fontWeight: 700 }}>
-            View All Shoes
-          </Link>
-        </div>
+        <div style={{ padding: '4rem', textAlign: 'center', color: '#6b7280' }}>Loading products...</div>
       ) : (
         <>
-          {/* On main home, show horizontal sliders */}
-          {!isFiltering && (
-            <>
-              <ProductCarouselSection
-                title="BEST SELLERS"
-                subtitle="Top customer rated footwear"
-                products={bestSellers}
-              />
+          <ProductCarouselSection
+            title="BEST SELLERS"
+            subtitle="Top customer rated footwear"
+            products={bestSellers}
+          />
 
-              <ProductCarouselSection
-                title="JUST LANDED"
-                subtitle="Fresh drops and latest 2026 styles"
-                products={newArrivals.length > 0 ? newArrivals : products}
-              />
-            </>
-          )}
-
-          {/* Full Grid of matching products */}
-          <section style={{ maxWidth: '1280px', margin: '0 auto 5rem', padding: '0 1.5rem' }}>
-            <div style={{ borderTop: isFiltering ? 'none' : '2px solid #f3f4f6', paddingTop: isFiltering ? '0' : '2.5rem', marginBottom: '1.8rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h2 style={{ fontSize: '1.6rem', fontWeight: 900, margin: 0 }}>
-                  {isFiltering ? 'ALL RESULTS' : 'EXPLORE FULL COLLECTION'}
-                </h2>
-                <p style={{ color: '#6b7280', fontSize: '0.85rem', margin: '4px 0 0 0' }}>All genuine shoes synced with MySQL database</p>
-              </div>
-              <span style={{ fontSize: '0.85rem', fontWeight: 700, background: '#f3f4f6', padding: '0.4rem 0.9rem', borderRadius: '4px' }}>
-                {products.length} Products Found
-              </span>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1.8rem' }}>
-              {products.map((shoe) => (
-                <ProductCard key={shoe.id} shoe={shoe} />
-              ))}
-            </div>
-          </section>
+          <ProductCarouselSection
+            title="JUST LANDED"
+            subtitle="Fresh drops and latest 2026 styles"
+            products={newArrivals.length > 0 ? newArrivals : products}
+          />
         </>
       )}
+    </div>
+  );
+}
+
+// 2. KIZORA-STYLE ALL PRODUCTS & CATEGORIES PAGE (Route: '/products')
+function ProductsPage() {
+  const [products, setProducts] = useState([]);
+  const [brands, setBrands] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 6; // 6 products per page = 2 rows of 3 columns
+
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const params = new URLSearchParams(location.search);
+  const categoryFilter = params.get('category') || 'all';
+  const genderFilter = params.get('gender') || 'all';
+  const brandFilter = params.get('brand') || 'all';
+  const searchFilter = params.get('search') || '';
+  const sortOption = params.get('sort') || 'newest';
+
+  const [priceMin, setPriceMin] = useState(params.get('min_price') || '');
+  const [priceMax, setPriceMax] = useState(params.get('max_price') || '');
+  const [inStockOnly, setInStockOnly] = useState(params.get('in_stock') === 'true');
+
+  useEffect(() => {
+    getBrands().then((res) => setBrands(res || [])).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    setCurrentPage(1);
+
+    const filterParams = {
+      category: categoryFilter !== 'all' ? categoryFilter : undefined,
+      gender: genderFilter !== 'all' ? genderFilter : undefined,
+      brand: brandFilter !== 'all' ? brandFilter : undefined,
+      search: searchFilter || undefined,
+      sort: sortOption,
+    };
+
+    getProducts(filterParams)
+      .then((res) => {
+        let items = res.data || [];
+
+        if (priceMin) {
+          items = items.filter((p) => Number(p.price) >= Number(priceMin));
+        }
+        if (priceMax) {
+          items = items.filter((p) => Number(p.price) <= Number(priceMax));
+        }
+        if (inStockOnly) {
+          items = items.filter((p) => p.variants && p.variants.some((v) => v.stock_quantity > 0));
+        }
+
+        setProducts(items);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('Failed to load products:', err);
+        setLoading(false);
+      });
+  }, [location.search, categoryFilter, genderFilter, brandFilter, searchFilter, sortOption, priceMin, priceMax, inStockOnly]);
+
+  const updateParam = (key, value) => {
+    const next = new URLSearchParams(location.search);
+    if (value && value !== 'all') {
+      next.set(key, value);
+    } else {
+      next.delete(key);
+    }
+    navigate(`/products?${next.toString()}`);
+  };
+
+  // Pagination calculation
+  const totalPages = Math.ceil(products.length / itemsPerPage);
+  const indexOfLastProduct = currentPage * itemsPerPage;
+  const indexOfFirstProduct = indexOfLastProduct - itemsPerPage;
+  const currentProducts = products.slice(indexOfFirstProduct, indexOfLastProduct);
+
+  const paginate = (pageNumber) => {
+    setCurrentPage(pageNumber);
+    window.scrollTo({ top: 120, behavior: 'smooth' });
+  };
+
+  const categoriesList = [
+    { label: 'All products', value: 'all', count: products.length },
+    { label: 'Sneakers', value: 'sneakers' },
+    { label: 'Sports', value: 'sports' },
+    { label: 'Men', value: 'Men', isGender: true },
+    { label: 'Women', value: 'Women', isGender: true },
+    { label: 'Kids', value: 'Kids', isGender: true },
+  ];
+
+  return (
+    <div style={{ maxWidth: '1280px', margin: '2rem auto 5rem', padding: '0 1.5rem' }}>
+      {/* Kizora Catalog Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem' }}>
+        <div>
+          <h1 style={{ fontSize: '2.2rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>All Products</h1>
+          <p style={{ margin: '6px 0 0 0', color: '#64748b', fontSize: '0.9rem' }}>
+            {products.length} products
+          </p>
+        </div>
+
+        {/* Sort by Dropdown */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Sort</span>
+          <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0.4rem 0.8rem', background: '#fff' }}>
+            <select
+              value={sortOption}
+              onChange={(e) => updateParam('sort', e.target.value)}
+              style={{ border: 'none', background: 'transparent', fontWeight: 700, fontSize: '0.85rem', color: '#0f172a', outline: 'none', cursor: 'pointer' }}
+            >
+              <option value="newest">Newest</option>
+              <option value="price_low">Price: Low to High</option>
+              <option value="price_high">Price: High to Low</option>
+              <option value="rating">Highest Rated</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content Layout: Left Kizora Sidebar + 3-Column Product Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr', gap: '2.5rem', alignItems: 'start' }}>
+        {/* Left Kizora Sidebar */}
+        <aside style={{ background: '#fff', border: '1px solid #f1f5f9', borderRadius: '16px', padding: '1.5rem', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.5rem' }}>
+            <SlidersHorizontal size={18} color="#0f172a" />
+            <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>Filters</h3>
+          </div>
+
+          {/* Categories List */}
+          <div style={{ marginBottom: '2rem' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.8rem' }}>
+              CATEGORIES
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {categoriesList.map((cat) => {
+                const isActive = cat.isGender ? genderFilter === cat.value : categoryFilter === cat.value;
+                return (
+                  <button
+                    key={cat.value}
+                    onClick={() => {
+                      if (cat.isGender) {
+                        updateParam('gender', cat.value);
+                      } else {
+                        updateParam('category', cat.value);
+                      }
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '0.65rem 0.9rem',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: isActive ? '#0f172a' : 'transparent',
+                      color: isActive ? '#fff' : '#475569',
+                      fontWeight: isActive ? 700 : 500,
+                      fontSize: '0.85rem',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {cat.value === 'all' && (
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: isActive ? '#fff' : '#94a3b8' }} />
+                    )}
+                    {cat.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Brand Filter */}
+          <div style={{ marginBottom: '2rem' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.8rem' }}>
+              BRAND
+            </div>
+            <select
+              value={brandFilter}
+              onChange={(e) => updateParam('brand', e.target.value)}
+              style={{ width: '100%', padding: '0.55rem', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}
+            >
+              <option value="all">All Brands</option>
+              {brands.map((b) => (
+                <option key={b.id} value={b.slug}>{b.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Price Range Filter */}
+          <div style={{ marginBottom: '2rem' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.8rem' }}>
+              PRICE ($)
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '0.6rem' }}>
+              <input
+                type="number"
+                placeholder="$ Min"
+                value={priceMin}
+                onChange={(e) => setPriceMin(e.target.value)}
+                style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.85rem' }}
+              />
+              <input
+                type="number"
+                placeholder="$ Max"
+                value={priceMax}
+                onChange={(e) => setPriceMax(e.target.value)}
+                style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.85rem' }}
+              />
+            </div>
+          </div>
+
+          {/* Availability */}
+          <div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.8rem' }}>
+              AVAILABILITY
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: '#334155' }}>
+              <input
+                type="checkbox"
+                checked={inStockOnly}
+                onChange={(e) => setInStockOnly(e.target.checked)}
+                style={{ width: '16px', height: '16px' }}
+              />
+              In stock only
+            </label>
+          </div>
+        </aside>
+
+        {/* Right Section: 3-Column Product Grid & Numbered Pagination */}
+        <main>
+          {loading ? (
+            <div style={{ padding: '5rem', textAlign: 'center', color: '#6b7280' }}>Loading products...</div>
+          ) : products.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '5rem 2rem', background: '#f8fafc', borderRadius: '16px', border: '1px dashed #cbd5e1' }}>
+              <h3 style={{ fontSize: '1.3rem', fontWeight: 800, marginBottom: '0.5rem' }}>No shoes matched your filters</h3>
+              <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>Try choosing another category or clearing your search filters.</p>
+              <button
+                onClick={() => navigate('/products')}
+                style={{ padding: '0.75rem 1.6rem', background: '#0f172a', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 700, cursor: 'pointer' }}
+              >
+                Reset All Filters
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* 3 Columns Grid exactly as shown in screenshot */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.8rem' }}>
+                {currentProducts.map((shoe) => (
+                  <KizoraProductCard key={shoe.id} shoe={shoe} />
+                ))}
+              </div>
+
+              {/* Kizora-Style Numbered Pagination Bar */}
+              {totalPages > 1 && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', marginTop: '3.5rem', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => paginate(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    style={{
+                      padding: '0.45rem 0.9rem',
+                      borderRadius: '8px',
+                      border: '1px solid #e2e8f0',
+                      background: '#fff',
+                      color: currentPage === 1 ? '#cbd5e1' : '#475569',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    « Previous
+                  </button>
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((number) => (
+                    <button
+                      key={number}
+                      onClick={() => paginate(number)}
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '8px',
+                        border: '1px solid #e2e8f0',
+                        background: currentPage === number ? '#0f172a' : '#fff',
+                        color: currentPage === number ? '#fff' : '#475569',
+                        fontSize: '0.85rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {number}
+                    </button>
+                  ))}
+
+                  <button
+                    onClick={() => paginate(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    style={{
+                      padding: '0.45rem 0.9rem',
+                      borderRadius: '8px',
+                      border: '1px solid #e2e8f0',
+                      background: '#fff',
+                      color: currentPage === totalPages ? '#cbd5e1' : '#475569',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    Next »
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </main>
+      </div>
     </div>
   );
 }
@@ -570,7 +831,8 @@ export default function App() {
         <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
           <Navbar />
           <Routes>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<HomePage />} />
+            <Route path="/products" element={<ProductsPage />} />
             <Route path="/product/:id" element={<ProductDetail />} />
             <Route path="/cart" element={<CartPage />} />
             <Route path="/checkout" element={<CheckoutPage />} />
