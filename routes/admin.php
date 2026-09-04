@@ -144,4 +144,19 @@ Route::middleware(['auth', 'role:admin,Manager,Staff,Super Admin'])->prefix('adm
     Route::patch('/settings/users/{user}', [SettingController::class,'updateUser'])->name('settings.users.update');
     Route::put('/settings/users/{user}', [SettingController::class,'updateUser']);
     Route::delete('/settings/users/{user}', [SettingController::class,'destroyUser'])->name('settings.users.destroy');
+
+    // === CHATBOT & AI ASSISTANT (ADMIN) ===
+    Route::get('/chatbot', [\App\Http\Controllers\Admin\ChatbotController::class, 'index'])->name('chatbot.index');
+    Route::post('/chatbot/settings', [\App\Http\Controllers\Admin\ChatbotController::class, 'updateSettings'])->name('chatbot.settings.update');
+    Route::post('/chatbot/ai-configs', [\App\Http\Controllers\Admin\ChatbotController::class, 'storeAiConfig'])->name('chatbot.ai-configs.store');
+    Route::put('/chatbot/ai-configs/{id}', [\App\Http\Controllers\Admin\ChatbotController::class, 'updateAiConfig'])->name('chatbot.ai-configs.update');
+    Route::post('/chatbot/ai-configs/{id}/activate', [\App\Http\Controllers\Admin\ChatbotController::class, 'activateAiConfig'])->name('chatbot.ai-configs.activate');
+    Route::post('/chatbot/ai-configs/{id}/test', [\App\Http\Controllers\Admin\ChatbotController::class, 'testAiConfig'])->name('chatbot.ai-configs.test');
+    Route::delete('/chatbot/ai-configs/{id}', [\App\Http\Controllers\Admin\ChatbotController::class, 'destroyAiConfig'])->name('chatbot.ai-configs.destroy');
+    Route::post('/chatbot/knowledge-base', [\App\Http\Controllers\Admin\ChatbotController::class, 'storeKnowledgeBase'])->name('chatbot.knowledge-base.store');
+    Route::put('/chatbot/knowledge-base/{id}', [\App\Http\Controllers\Admin\ChatbotController::class, 'updateKnowledgeBase'])->name('chatbot.knowledge-base.update');
+    Route::post('/chatbot/knowledge-base/{id}/toggle', [\App\Http\Controllers\Admin\ChatbotController::class, 'toggleKnowledgeBase'])->name('chatbot.knowledge-base.toggle');
+    Route::delete('/chatbot/knowledge-base/{id}', [\App\Http\Controllers\Admin\ChatbotController::class, 'destroyKnowledgeBase'])->name('chatbot.knowledge-base.destroy');
+    Route::delete('/chatbot/conversations/{id}', [\App\Http\Controllers\Admin\ChatbotController::class, 'destroyConversation'])->name('chatbot.conversations.destroy');
+    Route::post('/chatbot/conversations/clear', [\App\Http\Controllers\Admin\ChatbotController::class, 'clearConversations'])->name('chatbot.conversations.clear');
 });

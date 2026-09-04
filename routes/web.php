@@ -346,6 +346,11 @@ Route::get('/returns', fn() => redirect()->route('pages.show', 'return-policy'))
 Route::get('/terms', fn() => redirect()->route('pages.show', 'terms'));
 Route::get('/privacy', fn() => redirect()->route('pages.show', 'privacy'));
 
+// === CHATBOT PUBLIC WIDGET ENDPOINTS ===
+Route::get('/chatbot/config', [\App\Http\Controllers\Api\ChatbotController::class, 'config'])->name('chatbot.public.config');
+Route::post('/chatbot/chat', [\App\Http\Controllers\Api\ChatbotController::class, 'chat'])->name('chatbot.public.chat');
+Route::get('/chatbot/history', [\App\Http\Controllers\Api\ChatbotController::class, 'history'])->name('chatbot.public.history');
+
 // fallback 404 handled by Inertia error page via exception handler
 Route::get('/404-preview', fn()=> Inertia::render('Error', ['status'=>404]))->name('error.preview');
 Route::fallback(function(){ return Inertia::render('Error', ['status'=>404]); });

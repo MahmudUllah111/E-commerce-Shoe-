@@ -22,6 +22,11 @@ Route::post('/products/{id}/reviews', [ProductController::class, 'addReview']);
 Route::post('/stock-notifications', [ProductController::class, 'subscribeStockNotification']);
 Route::post('/contact', [ProductController::class, 'submitContact']);
 
+// Chatbot Public Endpoints
+Route::get('/chatbot/config', [\App\Http\Controllers\Api\ChatbotController::class, 'config']);
+Route::post('/chatbot/chat', [\App\Http\Controllers\Api\ChatbotController::class, 'chat']);
+Route::get('/chatbot/history', [\App\Http\Controllers\Api\ChatbotController::class, 'history']);
+
 // Authentication
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);

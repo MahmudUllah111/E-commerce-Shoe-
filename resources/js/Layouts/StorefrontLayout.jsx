@@ -2,6 +2,7 @@ import { Link, usePage, router } from '@inertiajs/react';
 import { ShoppingBag, Heart, Search, User, ShieldAlert, Truck } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
+import ChatbotWidget from '@/Components/ChatbotWidget';
 
 export default function StorefrontLayout({ children }) {
     const { auth, cartCount, wishlistCount, flash } = usePage().props;
@@ -214,6 +215,7 @@ export default function StorefrontLayout({ children }) {
                     </div>
                 </div>
             </footer>
+            <ChatbotWidget />
         </div>
     );
 }

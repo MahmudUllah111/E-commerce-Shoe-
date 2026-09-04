@@ -7,7 +7,7 @@ const navGroups = [
     { title: 'Sales', items: [{label:'Orders', href:'/admin/orders'}, {label:'Inventory', href:'/admin/inventory'}, {label:'History', href:'/admin/inventory/logs'}, {label:'Coupons', href:'/admin/coupons'}] },
     { title: 'Customers', items: [{label:'Customers', href:'/admin/customers'}, {label:'Reviews', href:'/admin/reviews'}, {label:'Queries', href:'/admin/queries'}] },
     { title: 'Content', items: [{label:'Hero Banner', href:'/admin/hero'}, {label:'Pages', href:'/admin/pages'}, {label:'Reports', href:'/admin/reports'}] },
-    { title: 'Settings', items: [{label:'Store Settings', href:'/admin/settings'}] },
+    { title: 'Settings', items: [{label:'AI Chatbot', href:'/admin/chatbot'}, {label:'Store Settings', href:'/admin/settings'}] },
 ];
 
 export default function AdminLayout({ children, header }) {
